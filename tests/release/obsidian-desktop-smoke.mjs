@@ -578,6 +578,7 @@ async function main() {
     await waitForRenderer(session, `document.querySelector(".grimmore-diff-preview")?.textContent?.includes(${JSON.stringify(appliedMarker)})`, "reviewed unified diff");
     assert.equal(await session.evaluate(applyReviewedPatch), true, "approve reviewed patch");
     await waitFor(() => readFile(join(vault, notePath), "utf8"), (content) => content === approvedReplacement, "Obsidian Vault.process approved write");
+    await waitForRenderer(session, 'document.querySelector(".grimmore-replacement-input") === null', "approved patch review modal to close");
 
     const staleReplacement = `${approvedReplacement}\nThis stale replacement must never be written.\n`;
     assert.equal(await session.evaluate(openAndStartReview()), true, "start stale patch review");
