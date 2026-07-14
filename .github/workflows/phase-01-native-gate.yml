@@ -224,10 +224,11 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes dbus-x11 flatpak gnome-keyring xvfb
-          flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak install --user --noninteractive flathub md.obsidian.Obsidian
           runtime_dir="$RUNNER_TEMP/grimmore-runtime"
           install -d -m 700 "$runtime_dir"
+          install -d -m 700 "$runtime_dir/grimmore"
           export XDG_RUNTIME_DIR="$runtime_dir"
           keyring_password="$(cat /proc/sys/kernel/random/uuid)$(cat /proc/sys/kernel/random/uuid)"
           login_environment="$(printf '%s' "$keyring_password" | gnome-keyring-daemon --login)"
@@ -255,6 +256,15 @@ jobs:
           node -e 'process.exit(Number(process.versions.node.split(".")[0]) === 22 ? 0 : 1)'
           corepack enable
           [[ "$(pnpm --version)" == 11.5.0 ]]
+      - name: Record installed Obsidian Flatpak
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p phase-1-native-evidence
+          {
+            printf 'version=%s\n' "$(flatpak info --show-version md.obsidian.Obsidian)"
+            printf 'commit=%s\n' "$(flatpak info --show-commit md.obsidian.Obsidian)"
+          } > phase-1-native-evidence/obsidian-flatpak.txt
       - name: Run Phase 1 Linux arm64 native gate
         shell: bash
         run: |
@@ -277,10 +287,6 @@ jobs:
             --daemon target/release/grimmored \
             --launcher target/release/grimmore-launcher \
             --report phase-1-native-evidence/obsidian-desktop-smoke.json
-          {
-            printf 'version=%s\n' "$(flatpak info --show-version md.obsidian.Obsidian)"
-            printf 'commit=%s\n' "$(flatpak info --show-commit md.obsidian.Obsidian)"
-          } > phase-1-native-evidence/obsidian-flatpak.txt
       - name: Capture host facts
         if: always()
         shell: bash

@@ -468,11 +468,15 @@ function startObsidian(options, vault, port, profile, environment) {
       env: environment,
     });
   }
+  if (typeof environment.XDG_RUNTIME_DIR !== "string" || environment.XDG_RUNTIME_DIR.length === 0) {
+    throw new Error("Flatpak desktop smoke requires XDG_RUNTIME_DIR for the companion socket mount");
+  }
   return spawnProcess(
     options.obsidian,
     [
       "run",
-      "--filesystem=xdg-run/grimmore",
+      `--filesystem=${join(environment.XDG_RUNTIME_DIR, "grimmore")}`,
+      `--env=XDG_RUNTIME_DIR=${environment.XDG_RUNTIME_DIR}`,
       `--env=PATH=${environment.PATH}`,
       "--command=obsidian.sh",
       options.flatpakApp,
