@@ -119,6 +119,31 @@ async fn verify_plugin_session(endpoint: &Path, project_note: &Path, original_pr
         original_project,
         "the companion proposed but did not write Markdown"
     );
+
+    write_json(
+        &mut plugin.stream,
+        &request(
+            4,
+            method::PROPOSE_NOTE_REPLACEMENT,
+            json!({
+                "path": "projects/grimmore.md",
+                "expectedRevision": content_revision("a newer note revision"),
+                "replacement": replacement
+            }),
+        ),
+    )
+    .await
+    .expect("send stale proposal request");
+    match read_json::<_, JsonRpcResponse>(&mut plugin.stream)
+        .await
+        .expect("read stale proposal response")
+    {
+        JsonRpcResponse::Failure(failure) => {
+            assert_eq!(failure.error.code, -32007);
+            assert_eq!(failure.error.message, "the companion note index is stale");
+        }
+        JsonRpcResponse::Success(_) => panic!("stale proposal unexpectedly succeeded"),
+    }
 }
 
 async fn verify_read_only_mcp_session(endpoint: &Path) {

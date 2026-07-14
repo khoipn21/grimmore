@@ -427,6 +427,27 @@ function submitReplacement(replacement) {
   })()`;
 }
 
+async function waitForReviewDiff(session, description) {
+  const state = await waitFor(
+    () => session.evaluate(`(() => {
+      if (document.querySelector(".grimmore-diff-preview") instanceof HTMLPreElement) {
+        return { kind: "diff" };
+      }
+      const notice = [...document.querySelectorAll(".notice")]
+        .map((element) => element.textContent?.trim())
+        .find((text) => text?.includes("Grimmore could not prepare or apply the patch."));
+      return notice === undefined ? undefined : { kind: "notice", notice };
+    })()`),
+    Boolean,
+    description,
+  );
+  assert.equal(
+    state.kind,
+    "diff",
+    `patch review ended before its diff was shown: ${state.notice}`,
+  );
+}
+
 const applyReviewedPatch = `(() => {
   const button = [...document.querySelectorAll("button")].find((candidate) => candidate.textContent?.trim() === "Apply reviewed patch");
   if (!(button instanceof HTMLButtonElement)) return false;
@@ -575,7 +596,12 @@ async function main() {
     assert.equal(await session.evaluate(openAndStartReview()), true, "start patch review");
     await waitForRenderer(session, 'document.querySelector(".grimmore-replacement-input") instanceof HTMLTextAreaElement', "replacement input modal");
     assert.equal(await session.evaluate(submitReplacement(approvedReplacement)), true);
-    await waitForRenderer(session, `document.querySelector(".grimmore-diff-preview")?.textContent?.includes(${JSON.stringify(appliedMarker)})`, "reviewed unified diff");
+    await waitForReviewDiff(session, "reviewed unified diff");
+    assert.equal(
+      await session.evaluate(`document.querySelector(".grimmore-diff-preview")?.textContent?.includes(${JSON.stringify(appliedMarker)})`),
+      true,
+      "reviewed unified diff contains the approved replacement",
+    );
     assert.equal(await session.evaluate(applyReviewedPatch), true, "approve reviewed patch");
     await waitFor(() => readFile(join(vault, notePath), "utf8"), (content) => content === approvedReplacement, "Obsidian Vault.process approved write");
     await waitForRenderer(session, 'document.querySelector(".grimmore-replacement-input") === null', "approved patch review modal to close");
@@ -588,7 +614,7 @@ async function main() {
     assert.equal(await session.evaluate(openAndStartReview()), true, "start stale patch review");
     await waitForRenderer(session, 'document.querySelector(".grimmore-replacement-input") instanceof HTMLTextAreaElement', "replacement input modal for stale write");
     assert.equal(await session.evaluate(submitReplacement(staleReplacement)), true);
-    await waitForRenderer(session, 'document.querySelector(".grimmore-diff-preview") instanceof HTMLPreElement', "stale patch review diff");
+    await waitForReviewDiff(session, "stale patch review diff");
     const externallyChanged = `${approvedReplacement}\n${staleMarker}\n`;
     await writeFile(join(vault, notePath), externallyChanged, "utf8");
     await waitForRenderer(session, `(async () => {

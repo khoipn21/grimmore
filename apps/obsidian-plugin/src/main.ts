@@ -1,6 +1,9 @@
 import { Notice, Plugin, TFile } from "obsidian";
 
-import { PluginSessionClient } from "./companion/plugin-session-client.js";
+import {
+  PluginSessionClient,
+} from "./companion/plugin-session-client.js";
+import { proposeAfterIndexReconciliation } from "./companion/index-reconciliation.js";
 import { requestPatchApproval, requestReplacement } from "./review-modals.js";
 import { recordSynchronousLoad } from "./startup-metrics.js";
 import {
@@ -106,7 +109,7 @@ export default class GrimmorePlugin
       if (replacement === null || this.#isUnloaded()) {
         return;
       }
-      const proposal = await this.#getClient().proposeNoteReplacement({
+      const proposal = await this.#proposeReplacement({
         path: file.path,
         expectedRevision: contentRevision(currentContent),
         replacement,
@@ -152,6 +155,18 @@ export default class GrimmorePlugin
       scopeId: "vault",
     });
     return this.#client;
+  }
+
+  async #proposeReplacement(params: {
+    path: string;
+    expectedRevision: string;
+    replacement: string;
+  }) {
+    return proposeAfterIndexReconciliation(
+      this.#getClient(),
+      params,
+      () => this.#isUnloaded(),
+    );
   }
 
   #isUnloaded(): boolean {

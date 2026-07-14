@@ -22,10 +22,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
 
 use super::{IpcServerConfig, role_can_write_proposals};
-use crate::vault_index::{propose_note_replacement, search_notes};
+use crate::vault_index::{VaultIndexError, propose_note_replacement, search_notes};
 
 const MAX_REQUEST_WINDOW_MS: u64 = 30_000;
 const MAX_INFLIGHT_REQUESTS: usize = 32;
+const STALE_NOTE_INDEX_ERROR_CODE: i32 = -32007;
 
 pub async fn handle_connection<S>(
     mut stream: S,
@@ -222,15 +223,24 @@ fn dispatch(
                 .and_then(|result| serde_json::to_value(result).map_err(|error| error.to_string()))
             }),
         method::PROPOSE_NOTE_REPLACEMENT if role_can_write_proposals(role) => {
-            serde_json::from_value::<ProposeNoteReplacementParams>(request.params)
-                .map_err(|error| error.to_string())
-                .and_then(|params| {
-                    propose_note_replacement(&config.storage, &config.vault_id, params)
-                        .map_err(|error| error.to_string())
-                        .and_then(|result| {
+            match serde_json::from_value::<ProposeNoteReplacementParams>(request.params) {
+                Ok(params) => {
+                    match propose_note_replacement(&config.storage, &config.vault_id, params) {
+                        Ok(result) => {
                             serde_json::to_value(result).map_err(|error| error.to_string())
-                        })
-                })
+                        }
+                        Err(VaultIndexError::StaleRevision) => {
+                            return failure(
+                                Some(request.id),
+                                STALE_NOTE_INDEX_ERROR_CODE,
+                                "the companion note index is stale",
+                            );
+                        }
+                        Err(error) => Err(error.to_string()),
+                    }
+                }
+                Err(error) => Err(error.to_string()),
+            }
         }
         method::PROPOSE_NOTE_REPLACEMENT => {
             return failure(
