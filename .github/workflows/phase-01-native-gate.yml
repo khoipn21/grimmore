@@ -269,6 +269,7 @@ jobs:
   windows-x64:
     if: >-
       github.event_name == 'workflow_dispatch' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       inputs.target == 'windows-x64' &&
       vars.GRIMMORE_ENABLE_DEFERRED_NATIVE_TARGETS == 'true'
     runs-on: windows-2025
@@ -352,6 +353,7 @@ jobs:
   windows-arm64:
     if: >-
       github.event_name == 'workflow_dispatch' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       inputs.target == 'windows-arm64' &&
       vars.GRIMMORE_ENABLE_DEFERRED_NATIVE_TARGETS == 'true'
     runs-on: windows-11-arm
@@ -435,6 +437,7 @@ jobs:
   macos-x64:
     if: >-
       github.event_name == 'workflow_dispatch' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       inputs.target == 'macos-x64' &&
       vars.GRIMMORE_ENABLE_DEFERRED_NATIVE_TARGETS == 'true'
     runs-on: macos-15-intel
@@ -522,6 +525,7 @@ jobs:
   macos-arm64:
     if: >-
       github.event_name == 'workflow_dispatch' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       inputs.target == 'macos-arm64' &&
       vars.GRIMMORE_ENABLE_DEFERRED_NATIVE_TARGETS == 'true'
     runs-on: macos-14
