@@ -42,10 +42,13 @@ jobs:
           install -d -m 700 "$runtime_dir"
           export XDG_RUNTIME_DIR="$runtime_dir"
           keyring_password="$(cat /proc/sys/kernel/random/uuid)$(cat /proc/sys/kernel/random/uuid)"
-          printf '%s' "$keyring_password" | gnome-keyring-daemon --login
+          login_environment="$(printf '%s' "$keyring_password" | gnome-keyring-daemon --login)"
           unset keyring_password
-          eval "$(dbus-launch --sh-syntax)"
-          eval "$(gnome-keyring-daemon --start --components=secrets)"
+          [[ -z "$login_environment" ]] || eval "$login_environment"
+          dbus_environment="$(dbus-launch --sh-syntax)"
+          eval "$dbus_environment"
+          keyring_environment="$(gnome-keyring-daemon --start --components=secrets)"
+          [[ -z "$keyring_environment" ]] || eval "$keyring_environment"
           {
             printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_SESSION_BUS_ADDRESS"
             printf 'XDG_RUNTIME_DIR=%s\n' "$XDG_RUNTIME_DIR"
@@ -147,10 +150,13 @@ jobs:
           install -d -m 700 "$runtime_dir"
           export XDG_RUNTIME_DIR="$runtime_dir"
           keyring_password="$(cat /proc/sys/kernel/random/uuid)$(cat /proc/sys/kernel/random/uuid)"
-          printf '%s' "$keyring_password" | gnome-keyring-daemon --login
+          login_environment="$(printf '%s' "$keyring_password" | gnome-keyring-daemon --login)"
           unset keyring_password
-          eval "$(dbus-launch --sh-syntax)"
-          eval "$(gnome-keyring-daemon --start --components=secrets)"
+          [[ -z "$login_environment" ]] || eval "$login_environment"
+          dbus_environment="$(dbus-launch --sh-syntax)"
+          eval "$dbus_environment"
+          keyring_environment="$(gnome-keyring-daemon --start --components=secrets)"
+          [[ -z "$keyring_environment" ]] || eval "$keyring_environment"
           {
             printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_SESSION_BUS_ADDRESS"
             printf 'XDG_RUNTIME_DIR=%s\n' "$XDG_RUNTIME_DIR"
@@ -221,10 +227,13 @@ jobs:
           install -d -m 700 "$runtime_dir"
           export XDG_RUNTIME_DIR="$runtime_dir"
           keyring_password="$(cat /proc/sys/kernel/random/uuid)$(cat /proc/sys/kernel/random/uuid)"
-          printf '%s' "$keyring_password" | gnome-keyring-daemon --login
+          login_environment="$(printf '%s' "$keyring_password" | gnome-keyring-daemon --login)"
           unset keyring_password
-          eval "$(dbus-launch --sh-syntax)"
-          eval "$(gnome-keyring-daemon --start --components=secrets)"
+          [[ -z "$login_environment" ]] || eval "$login_environment"
+          dbus_environment="$(dbus-launch --sh-syntax)"
+          eval "$dbus_environment"
+          keyring_environment="$(gnome-keyring-daemon --start --components=secrets)"
+          [[ -z "$keyring_environment" ]] || eval "$keyring_environment"
           {
             printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_SESSION_BUS_ADDRESS"
             printf 'XDG_RUNTIME_DIR=%s\n' "$XDG_RUNTIME_DIR"
