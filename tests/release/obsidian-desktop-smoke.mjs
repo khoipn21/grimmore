@@ -27,13 +27,13 @@ function parseArguments(arguments_) {
     "--fixture-vault",
     "--workspace",
     "--report",
+    "--disable-sandbox",
   ]);
-  for (let index = 0; index < arguments_.length; index += 2) {
+  for (let index = 0; index < arguments_.length;) {
     const name = arguments_[index];
-    const value = arguments_[index + 1];
-    if (!name?.startsWith("--") || value === undefined || value.startsWith("--")) {
+    if (!name?.startsWith("--")) {
       throw new Error(
-        "usage: node tests/release/obsidian-desktop-smoke.mjs --obsidian <desktop-executable> --daemon <grimmored> --launcher <grimmore-launcher> [--flatpak-app <application-id>] [--fixture-vault <vault>] [--workspace <directory>] [--report <path>]",
+        "usage: node tests/release/obsidian-desktop-smoke.mjs --obsidian <desktop-executable> --daemon <grimmored> --launcher <grimmore-launcher> [--flatpak-app <application-id>] [--fixture-vault <vault>] [--workspace <directory>] [--report <path>] [--disable-sandbox]",
       );
     }
     if (!allowed.has(name)) {
@@ -42,7 +42,19 @@ function parseArguments(arguments_) {
     if (values.has(name)) {
       throw new Error(`duplicate argument: ${name}`);
     }
+    if (name === "--disable-sandbox") {
+      values.set(name, true);
+      index += 1;
+      continue;
+    }
+    const value = arguments_[index + 1];
+    if (value === undefined || value.startsWith("--")) {
+      throw new Error(
+        "usage: node tests/release/obsidian-desktop-smoke.mjs --obsidian <desktop-executable> --daemon <grimmored> --launcher <grimmore-launcher> [--flatpak-app <application-id>] [--fixture-vault <vault>] [--workspace <directory>] [--report <path>] [--disable-sandbox]",
+      );
+    }
     values.set(name, value);
+    index += 2;
   }
   for (const name of ["--obsidian", "--daemon", "--launcher"]) {
     if (!values.has(name)) {
@@ -52,6 +64,7 @@ function parseArguments(arguments_) {
   return {
     obsidian: resolve(values.get("--obsidian")),
     daemon: resolve(values.get("--daemon")),
+    disableSandbox: values.get("--disable-sandbox") === true,
     flatpakApp: values.get("--flatpak-app"),
     launcher: resolve(values.get("--launcher")),
     fixtureVault: resolve(values.get("--fixture-vault") ?? fixtureVault),
@@ -448,6 +461,7 @@ function startObsidian(options, vault, port, profile, environment) {
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${profile}`,
   ];
+  if (options.disableSandbox) arguments_.push("--no-sandbox");
   if (options.flatpakApp === undefined) {
     return spawnProcess(options.obsidian, arguments_, {
       cwd: options.workspace,

@@ -103,6 +103,7 @@ jobs:
             --obsidian "$GRIMMORE_OBSIDIAN_BINARY" \
             --daemon target/release/grimmored \
             --launcher target/release/grimmore-launcher \
+            --disable-sandbox \
             --report phase-1-native-evidence/obsidian-desktop-smoke.json
       - name: Capture host facts
         if: always()
