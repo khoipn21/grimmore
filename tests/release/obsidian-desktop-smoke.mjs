@@ -561,6 +561,7 @@ async function main() {
     await waitForRenderer(session, 'typeof app !== "undefined" && app.plugins !== undefined', "the Obsidian plugin manager");
     assert.equal(await enableTestCommunityPlugins(session), true, "enable community plugins in the isolated desktop-smoke profile");
     await waitForRenderer(session, 'Boolean(globalThis.app?.plugins?.getPlugin("grimmore"))', "the production Grimmore plugin to load in real Obsidian");
+    await waitForRenderer(session, 'Boolean(app.workspace?.rootSplit?.containerEl?.isConnected)', "the real Obsidian workspace layout");
     await waitForRenderer(session, `Boolean(app.vault.getAbstractFileByPath(${JSON.stringify(notePath)}))`, "the fixture note to load in real Obsidian");
     const obsidianVersion = await session.evaluate(
       'typeof app.appVersion === "string" ? app.appVersion : document.title.match(/Obsidian ([0-9][^\\s]*)$/)?.[1] ?? null',
