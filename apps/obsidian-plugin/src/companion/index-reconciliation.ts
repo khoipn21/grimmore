@@ -1,7 +1,5 @@
 import type { PatchProposal, ProposeNoteReplacementParams } from "@grimmore/protocol";
 
-import { CompanionRequestError } from "./plugin-session-client.js";
-
 const INDEX_RECONCILIATION_ERROR_CODE = -32007;
 const INDEX_RECONCILIATION_RETRY_DELAY_MS = 200;
 const INDEX_RECONCILIATION_RETRY_ATTEMPTS = 5;
@@ -10,6 +8,16 @@ export interface PatchProposalClient {
   proposeNoteReplacement(
     params: ProposeNoteReplacementParams,
   ): Promise<PatchProposal>;
+}
+
+function isStaleIndexError(
+  error: unknown,
+): error is Error & { code: number } {
+  if (!(error instanceof Error) || error.name !== "CompanionRequestError") {
+    return false;
+  }
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "number" && code === INDEX_RECONCILIATION_ERROR_CODE;
 }
 
 export async function proposeAfterIndexReconciliation(
@@ -26,8 +34,7 @@ export async function proposeAfterIndexReconciliation(
       return await client.proposeNoteReplacement(params);
     } catch (error) {
       const shouldRetry =
-        error instanceof CompanionRequestError &&
-        error.code === INDEX_RECONCILIATION_ERROR_CODE &&
+        isStaleIndexError(error) &&
         attempt + 1 < INDEX_RECONCILIATION_RETRY_ATTEMPTS;
       if (!shouldRetry || isUnloaded()) {
         throw error;

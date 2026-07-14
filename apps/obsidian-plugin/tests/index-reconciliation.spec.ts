@@ -1,11 +1,6 @@
-import type {
-  JsonRpcFailure,
-  PatchProposal,
-  ProposeNoteReplacementParams,
-} from "@grimmore/protocol";
+import type { PatchProposal, ProposeNoteReplacementParams } from "@grimmore/protocol";
 import { describe, expect, it } from "vitest";
 
-import { CompanionRequestError } from "../src/companion/plugin-session-client.js";
 import { proposeAfterIndexReconciliation } from "../src/companion/index-reconciliation.js";
 
 const params = {
@@ -19,13 +14,10 @@ const proposal: PatchProposal = {
   proposedRevision: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 };
 
-function requestError(code: number): CompanionRequestError {
-  const failure: JsonRpcFailure = {
-    jsonrpc: "2.0",
-    id: 1,
-    error: { code, message: "request failed" },
-  };
-  return new CompanionRequestError(failure);
+function requestError(code: number): Error & { code: number } {
+  const error = Object.assign(new Error("request failed"), { code });
+  error.name = "CompanionRequestError";
+  return error;
 }
 
 describe("companion index reconciliation", () => {
