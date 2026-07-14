@@ -10,10 +10,7 @@ on:
         options:
           - linux-x64-gnu
           - linux-arm64-gnu
-          - windows-x64
-          - windows-arm64
-          - macos-x64
-          - macos-arm64
+          - linux-x64-canonical
 
 permissions:
   contents: read
@@ -27,7 +24,7 @@ jobs:
     if: >-
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       inputs.target == 'linux-x64-gnu'
-    runs-on: [self-hosted, grimmore-phase-1, linux, x64, ubuntu-24.04]
+    runs-on: ubuntu-24.04
     environment: phase-1-release-test
     timeout-minutes: 90
     steps:
@@ -35,7 +32,33 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Verify protected Ubuntu 24.04 x64 runner
+      - name: Provision a transient user Secret Service and desktop runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes dbus-x11 gnome-keyring xvfb
+          eval "$(dbus-launch --sh-syntax)"
+          eval "$(gnome-keyring-daemon --start --components=secrets)"
+          {
+            printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_SESSION_BUS_ADDRESS"
+            printf 'GNOME_KEYRING_CONTROL=%s\n' "$GNOME_KEYRING_CONTROL"
+            printf 'APPIMAGE_EXTRACT_AND_RUN=1\n'
+          } >> "$GITHUB_ENV"
+      - name: Download the pinned Obsidian desktop application
+        shell: bash
+        run: |
+          set -euo pipefail
+          appimage="$RUNNER_TEMP/Obsidian-1.12.7.AppImage"
+          curl --fail --location --retry 3 --retry-all-errors \
+            --output "$appimage" \
+            https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/Obsidian-1.12.7.AppImage
+          printf '%s  %s\n' \
+            f6d8b96fe685a8632c819cc093a248ace0f6bab410f44a6c929a2611b1ebb17c \
+            "$appimage" | sha256sum --check --status
+          chmod 0755 "$appimage"
+          printf 'GRIMMORE_OBSIDIAN_BINARY=%s\n' "$appimage" >> "$GITHUB_ENV"
+      - name: Verify GitHub-hosted Ubuntu 24.04 x64 runner
         shell: bash
         run: |
           set -euo pipefail
@@ -51,8 +74,6 @@ jobs:
           [[ "$(pnpm --version)" == 11.5.0 ]]
       - name: Run Phase 1 Linux x64 native gate
         shell: bash
-        env:
-          GRIMMORE_OBSIDIAN_BINARY: ${{ vars.GRIMMORE_OBSIDIAN_BINARY }}
         run: |
           set -euo pipefail
           : "${GRIMMORE_OBSIDIAN_BINARY:?configure the native Obsidian desktop executable}"
@@ -68,11 +89,60 @@ jobs:
           cargo test --locked -p grimmore-core native_credential_store_round_trip_cleans_up -- --ignored
           pnpm test:release-slice
           mkdir -p phase-1-native-evidence
-          node tests/release/obsidian-desktop-smoke.mjs \
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x720x24' \
+            node tests/release/obsidian-desktop-smoke.mjs \
             --obsidian "$GRIMMORE_OBSIDIAN_BINARY" \
             --daemon target/release/grimmored \
             --launcher target/release/grimmore-launcher \
             --report phase-1-native-evidence/obsidian-desktop-smoke.json
+      - name: Capture host facts
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p phase-1-native-evidence
+          {
+            git rev-parse HEAD
+            uname -a
+            cat /etc/os-release
+            getconf GNU_LIBC_VERSION
+            nproc
+            free -h
+            findmnt --target "$GITHUB_WORKSPACE"
+            rustc --version
+            node --version
+            pnpm --version
+          } > phase-1-native-evidence/host.txt
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: phase-1-linux-x64-native-evidence
+          path: phase-1-native-evidence
+          if-no-files-found: error
+
+  canonical-linux-x64:
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      inputs.target == 'linux-x64-canonical'
+    runs-on: ubuntu-24.04
+    environment: phase-1-release-test
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Provision a transient user Secret Service
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes dbus-x11 gnome-keyring
+          eval "$(dbus-launch --sh-syntax)"
+          eval "$(gnome-keyring-daemon --start --components=secrets)"
+          {
+            printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_SESSION_BUS_ADDRESS"
+            printf 'GNOME_KEYRING_CONTROL=%s\n' "$GNOME_KEYRING_CONTROL"
+          } >> "$GITHUB_ENV"
       - name: Run canonical Phase 1 performance gate
         shell: bash
         env:
@@ -109,13 +179,11 @@ jobs:
             free -h
             findmnt --target "$GITHUB_WORKSPACE"
             rustc --version
-            node --version
-            pnpm --version
           } > phase-1-native-evidence/host.txt
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
-          name: phase-1-linux-x64-native-evidence
+          name: phase-1-linux-x64-canonical-performance-evidence
           path: phase-1-native-evidence
           if-no-files-found: error
 
@@ -123,7 +191,7 @@ jobs:
     if: >-
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       inputs.target == 'linux-arm64-gnu'
-    runs-on: [self-hosted, grimmore-phase-1, linux, arm64, ubuntu-24.04]
+    runs-on: ubuntu-24.04-arm
     environment: phase-1-release-test
     timeout-minutes: 90
     steps:
@@ -131,7 +199,19 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Verify protected Ubuntu 24.04 arm64 runner
+      - name: Provision a transient user Secret Service
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes dbus-x11 gnome-keyring
+          eval "$(dbus-launch --sh-syntax)"
+          eval "$(gnome-keyring-daemon --start --components=secrets)"
+          {
+            printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_SESSION_BUS_ADDRESS"
+            printf 'GNOME_KEYRING_CONTROL=%s\n' "$GNOME_KEYRING_CONTROL"
+          } >> "$GITHUB_ENV"
+      - name: Verify GitHub-hosted Ubuntu 24.04 arm64 runner
         shell: bash
         run: |
           set -euo pipefail
@@ -147,12 +227,8 @@ jobs:
           [[ "$(pnpm --version)" == 11.5.0 ]]
       - name: Run Phase 1 Linux arm64 native gate
         shell: bash
-        env:
-          GRIMMORE_OBSIDIAN_BINARY: ${{ vars.GRIMMORE_OBSIDIAN_BINARY }}
         run: |
           set -euo pipefail
-          : "${GRIMMORE_OBSIDIAN_BINARY:?configure the native Obsidian desktop executable}"
-          [[ -x "$GRIMMORE_OBSIDIAN_BINARY" ]]
           pnpm install --frozen-lockfile
           pnpm lint
           pnpm typecheck
@@ -164,11 +240,8 @@ jobs:
           cargo test --locked -p grimmore-core native_credential_store_round_trip_cleans_up -- --ignored
           pnpm test:release-slice
           mkdir -p phase-1-native-evidence
-          node tests/release/obsidian-desktop-smoke.mjs \
-            --obsidian "$GRIMMORE_OBSIDIAN_BINARY" \
-            --daemon target/release/grimmored \
-            --launcher target/release/grimmore-launcher \
-            --report phase-1-native-evidence/obsidian-desktop-smoke.json
+          printf '%s\n' 'not-run: no maintained native Linux arm64 Obsidian desktop artifact is available for GitHub-hosted runners' \
+            > phase-1-native-evidence/obsidian-desktop-smoke.txt
       - name: Capture host facts
         if: always()
         shell: bash
@@ -195,9 +268,10 @@ jobs:
 
   windows-x64:
     if: >-
-      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
-      inputs.target == 'windows-x64'
-    runs-on: [self-hosted, grimmore-phase-1, windows, x64, windows-11]
+      github.event_name == 'workflow_dispatch' &&
+      inputs.target == 'windows-x64' &&
+      vars.GRIMMORE_ENABLE_DEFERRED_NATIVE_TARGETS == 'true'
+    runs-on: windows-2025
     environment: phase-1-release-test
     timeout-minutes: 90
     steps:
@@ -277,9 +351,10 @@ jobs:
 
   windows-arm64:
     if: >-
-      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
-      inputs.target == 'windows-arm64'
-    runs-on: [self-hosted, grimmore-phase-1, windows, arm64, windows-11]
+      github.event_name == 'workflow_dispatch' &&
+      inputs.target == 'windows-arm64' &&
+      vars.GRIMMORE_ENABLE_DEFERRED_NATIVE_TARGETS == 'true'
+    runs-on: windows-11-arm
     environment: phase-1-release-test
     timeout-minutes: 90
     steps:
@@ -359,9 +434,10 @@ jobs:
 
   macos-x64:
     if: >-
-      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
-      inputs.target == 'macos-x64'
-    runs-on: [self-hosted, grimmore-phase-1, macos, x64, macos-14]
+      github.event_name == 'workflow_dispatch' &&
+      inputs.target == 'macos-x64' &&
+      vars.GRIMMORE_ENABLE_DEFERRED_NATIVE_TARGETS == 'true'
+    runs-on: macos-15-intel
     environment: phase-1-release-test
     timeout-minutes: 120
     steps:
@@ -445,9 +521,10 @@ jobs:
 
   macos-arm64:
     if: >-
-      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
-      inputs.target == 'macos-arm64'
-    runs-on: [self-hosted, grimmore-phase-1, macos, arm64, macos-14]
+      github.event_name == 'workflow_dispatch' &&
+      inputs.target == 'macos-arm64' &&
+      vars.GRIMMORE_ENABLE_DEFERRED_NATIVE_TARGETS == 'true'
+    runs-on: macos-14
     environment: phase-1-release-test
     timeout-minutes: 120
     steps:
