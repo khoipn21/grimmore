@@ -11,6 +11,11 @@ on:
           - linux-x64-gnu
           - linux-arm64-gnu
           - linux-x64-canonical
+      run_desktop_smoke:
+        description: Re-enable the deferred real-Obsidian desktop smoke
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -55,6 +60,7 @@ jobs:
             printf 'APPIMAGE_EXTRACT_AND_RUN=1\n'
           } >> "$GITHUB_ENV"
       - name: Download the pinned Obsidian desktop application
+        if: inputs.run_desktop_smoke
         shell: bash
         run: |
           set -euo pipefail
@@ -85,8 +91,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          : "${GRIMMORE_OBSIDIAN_BINARY:?configure the native Obsidian desktop executable}"
-          [[ -x "$GRIMMORE_OBSIDIAN_BINARY" ]]
           pnpm install --frozen-lockfile
           pnpm lint
           pnpm typecheck
@@ -97,6 +101,13 @@ jobs:
           cargo test --locked --workspace --all-targets
           cargo test --locked -p grimmore-core native_credential_store_round_trip_cleans_up -- --ignored
           pnpm test:release-slice
+      - name: Run explicitly enabled real-Obsidian desktop smoke
+        if: inputs.run_desktop_smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${GRIMMORE_OBSIDIAN_BINARY:?configure the native Obsidian desktop executable}"
+          [[ -x "$GRIMMORE_OBSIDIAN_BINARY" ]]
           mkdir -p phase-1-native-evidence
           xvfb-run --auto-servernum --server-args='-screen 0 1280x720x24' \
             node tests/release/obsidian-desktop-smoke.mjs \
@@ -105,6 +116,12 @@ jobs:
             --launcher target/release/grimmore-launcher \
             --disable-sandbox \
             --report phase-1-native-evidence/obsidian-desktop-smoke.json
+      - name: Record deferred real-Obsidian desktop smoke
+        if: always() && !inputs.run_desktop_smoke
+        shell: bash
+        run: |
+          mkdir -p phase-1-native-evidence
+          printf '%s\n' '{"status":"deferred","gate":"real-obsidian-desktop","reason":"user accepted Phase 1 deferral after GitHub-hosted x64 failure","reenableWorkflowInput":"run_desktop_smoke=true","requiredForRelease":true}' > phase-1-native-evidence/obsidian-desktop-smoke.json
       - name: Capture host facts
         if: always()
         shell: bash
@@ -218,14 +235,12 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Provision a transient user Secret Service and native Obsidian Flatpak
+      - name: Provision a transient user Secret Service
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes dbus-x11 flatpak gnome-keyring xvfb
-          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user --noninteractive flathub md.obsidian.Obsidian
+          sudo apt-get install --no-install-recommends --yes dbus-x11 gnome-keyring xvfb
           runtime_dir="$RUNNER_TEMP/grimmore-runtime"
           install -d -m 700 "$runtime_dir"
           install -d -m 700 "$runtime_dir/grimmore"
@@ -242,6 +257,14 @@ jobs:
             printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_SESSION_BUS_ADDRESS"
             printf 'XDG_RUNTIME_DIR=%s\n' "$XDG_RUNTIME_DIR"
           } >> "$GITHUB_ENV"
+      - name: Install native Obsidian Flatpak for explicitly enabled desktop smoke
+        if: inputs.run_desktop_smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install --no-install-recommends --yes flatpak
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --noninteractive flathub md.obsidian.Obsidian
       - name: Verify GitHub-hosted Ubuntu 24.04 arm64 runner
         shell: bash
         run: |
@@ -257,6 +280,7 @@ jobs:
           corepack enable
           [[ "$(pnpm --version)" == 11.5.0 ]]
       - name: Record installed Obsidian Flatpak
+        if: inputs.run_desktop_smoke
         shell: bash
         run: |
           set -euo pipefail
@@ -279,6 +303,11 @@ jobs:
           cargo test --locked --workspace --all-targets
           cargo test --locked -p grimmore-core native_credential_store_round_trip_cleans_up -- --ignored
           pnpm test:release-slice
+      - name: Run explicitly enabled real-Obsidian desktop smoke
+        if: inputs.run_desktop_smoke
+        shell: bash
+        run: |
+          set -euo pipefail
           mkdir -p phase-1-native-evidence
           xvfb-run --auto-servernum --server-args='-screen 0 1280x720x24' \
             node tests/release/obsidian-desktop-smoke.mjs \
@@ -287,6 +316,12 @@ jobs:
             --daemon target/release/grimmored \
             --launcher target/release/grimmore-launcher \
             --report phase-1-native-evidence/obsidian-desktop-smoke.json
+      - name: Record deferred real-Obsidian desktop smoke
+        if: always() && !inputs.run_desktop_smoke
+        shell: bash
+        run: |
+          mkdir -p phase-1-native-evidence
+          printf '%s\n' '{"status":"deferred","gate":"real-obsidian-desktop","reason":"user accepted Phase 1 deferral after GitHub-hosted x64 failure","reenableWorkflowInput":"run_desktop_smoke=true","requiredForRelease":true}' > phase-1-native-evidence/obsidian-desktop-smoke.json
       - name: Capture host facts
         if: always()
         shell: bash
