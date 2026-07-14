@@ -1,0 +1,530 @@
+name: Phase 1 native gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Native release target to verify on its protected runner
+        required: true
+        type: choice
+        options:
+          - linux-x64-gnu
+          - linux-arm64-gnu
+          - windows-x64
+          - windows-arm64
+          - macos-x64
+          - macos-arm64
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-01-native-gate-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  linux-x64:
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      inputs.target == 'linux-x64-gnu'
+    runs-on: [self-hosted, grimmore-phase-1, linux, x64, ubuntu-24.04]
+    environment: phase-1-release-test
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify protected Ubuntu 24.04 x64 runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]]
+          [[ "$(uname -m)" == x86_64 ]]
+          [[ "$(id -u)" -ne 0 ]]
+          command -v dbus-send
+          dbus-send --session --dest=org.freedesktop.secrets \
+            --type=method_call /org/freedesktop/secrets org.freedesktop.DBus.Peer.Ping
+          node -e 'process.exit(Number(process.versions.node.split(".")[0]) === 22 ? 0 : 1)'
+          corepack enable
+          [[ "$(pnpm --version)" == 11.5.0 ]]
+      - name: Run Phase 1 Linux x64 native gate
+        shell: bash
+        env:
+          GRIMMORE_OBSIDIAN_BINARY: ${{ vars.GRIMMORE_OBSIDIAN_BINARY }}
+        run: |
+          set -euo pipefail
+          : "${GRIMMORE_OBSIDIAN_BINARY:?configure the native Obsidian desktop executable}"
+          [[ -x "$GRIMMORE_OBSIDIAN_BINARY" ]]
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm -r test
+          pnpm build
+          cargo fmt --all -- --check
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo test --locked --workspace --all-targets
+          cargo test --locked -p grimmore-core native_credential_store_round_trip_cleans_up -- --ignored
+          pnpm test:release-slice
+          mkdir -p phase-1-native-evidence
+          node tests/release/obsidian-desktop-smoke.mjs \
+            --obsidian "$GRIMMORE_OBSIDIAN_BINARY" \
+            --daemon target/release/grimmored \
+            --launcher target/release/grimmore-launcher \
+            --report phase-1-native-evidence/obsidian-desktop-smoke.json
+      - name: Run canonical Phase 1 performance gate
+        shell: bash
+        env:
+          GRIMMORE_BENCH_WORKDIR: ${{ vars.GRIMMORE_BENCH_WORKDIR }}
+          GRIMMORE_BENCH_POWER_MODE: ${{ vars.GRIMMORE_BENCH_POWER_MODE }}
+          GRIMMORE_BENCH_CPUSET: ${{ vars.GRIMMORE_BENCH_CPUSET }}
+        run: |
+          set -euo pipefail
+          : "${GRIMMORE_BENCH_WORKDIR:?configure an absolute NVMe benchmark workspace}"
+          : "${GRIMMORE_BENCH_POWER_MODE:?record the runner power mode}"
+          : "${GRIMMORE_BENCH_CPUSET:?configure exactly four benchmark CPUs}"
+          [[ "$GRIMMORE_BENCH_WORKDIR" == /* ]]
+          [[ "$GRIMMORE_BENCH_CPUSET" =~ ^[0-9,-]+$ ]]
+          mkdir -p phase-1-native-evidence
+          {
+            printf 'benchmark_workspace=%s\n' "$GRIMMORE_BENCH_WORKDIR"
+            printf 'benchmark_power_mode=%s\n' "$GRIMMORE_BENCH_POWER_MODE"
+            printf 'benchmark_cpuset=%s\n' "$GRIMMORE_BENCH_CPUSET"
+          } > phase-1-native-evidence/canonical-performance-config.txt
+          taskset --cpu-list "$GRIMMORE_BENCH_CPUSET" \
+            cargo test --release --locked -p grimmored --test performance_gate canonical_vault_performance_gate -- --ignored --nocapture \
+            2>&1 | tee phase-1-native-evidence/canonical-performance.log
+      - name: Capture host facts
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p phase-1-native-evidence
+          {
+            git rev-parse HEAD
+            uname -a
+            cat /etc/os-release
+            getconf GNU_LIBC_VERSION
+            nproc
+            free -h
+            findmnt --target "$GITHUB_WORKSPACE"
+            rustc --version
+            node --version
+            pnpm --version
+          } > phase-1-native-evidence/host.txt
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: phase-1-linux-x64-native-evidence
+          path: phase-1-native-evidence
+          if-no-files-found: error
+
+  linux-arm64:
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      inputs.target == 'linux-arm64-gnu'
+    runs-on: [self-hosted, grimmore-phase-1, linux, arm64, ubuntu-24.04]
+    environment: phase-1-release-test
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify protected Ubuntu 24.04 arm64 runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]]
+          [[ "$(uname -m)" == aarch64 || "$(uname -m)" == arm64 ]]
+          [[ "$(id -u)" -ne 0 ]]
+          command -v dbus-send
+          dbus-send --session --dest=org.freedesktop.secrets \
+            --type=method_call /org/freedesktop/secrets org.freedesktop.DBus.Peer.Ping
+          node -e 'process.exit(Number(process.versions.node.split(".")[0]) === 22 ? 0 : 1)'
+          corepack enable
+          [[ "$(pnpm --version)" == 11.5.0 ]]
+      - name: Run Phase 1 Linux arm64 native gate
+        shell: bash
+        env:
+          GRIMMORE_OBSIDIAN_BINARY: ${{ vars.GRIMMORE_OBSIDIAN_BINARY }}
+        run: |
+          set -euo pipefail
+          : "${GRIMMORE_OBSIDIAN_BINARY:?configure the native Obsidian desktop executable}"
+          [[ -x "$GRIMMORE_OBSIDIAN_BINARY" ]]
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm -r test
+          pnpm build
+          cargo fmt --all -- --check
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo test --locked --workspace --all-targets
+          cargo test --locked -p grimmore-core native_credential_store_round_trip_cleans_up -- --ignored
+          pnpm test:release-slice
+          mkdir -p phase-1-native-evidence
+          node tests/release/obsidian-desktop-smoke.mjs \
+            --obsidian "$GRIMMORE_OBSIDIAN_BINARY" \
+            --daemon target/release/grimmored \
+            --launcher target/release/grimmore-launcher \
+            --report phase-1-native-evidence/obsidian-desktop-smoke.json
+      - name: Capture host facts
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p phase-1-native-evidence
+          {
+            git rev-parse HEAD
+            uname -a
+            cat /etc/os-release
+            getconf GNU_LIBC_VERSION
+            nproc
+            free -h
+            findmnt --target "$GITHUB_WORKSPACE"
+            rustc --version
+            node --version
+            pnpm --version
+          } > phase-1-native-evidence/host.txt
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: phase-1-linux-arm64-native-evidence
+          path: phase-1-native-evidence
+          if-no-files-found: error
+
+  windows-x64:
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      inputs.target == 'windows-x64'
+    runs-on: [self-hosted, grimmore-phase-1, windows, x64, windows-11]
+    environment: phase-1-release-test
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify protected Windows 11 x64 runner
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) { throw "Windows PowerShell 5.1 is required" }
+          if ($env:PROCESSOR_ARCHITECTURE -ne "AMD64") { throw "native x64 runner is required" }
+          $processors = @(Get-CimInstance Win32_Processor)
+          if ($processors.Count -eq 0) { throw "a physical processor report is required" }
+          foreach ($processor in $processors) {
+            if ([int]$processor.Architecture -ne 9) { throw "native x64 processor hardware is required" }
+          }
+          $operatingSystem = Get-CimInstance Win32_OperatingSystem
+          if ([int]$operatingSystem.ProductType -ne 1) { throw "a Windows 11 workstation runner is required" }
+          if ([version]$operatingSystem.Version -lt [version]"10.0.22000") { throw "Windows 11 is required" }
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+          if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw "standard user runner is required" }
+          Get-ChildItem Cert:\CurrentUser\My | Out-Null
+          $nodeMajor = [int](& node -p "process.versions.node.split('.')[0]")
+          if ($nodeMajor -ne 22) { throw "Node 22 is required" }
+          corepack enable
+          if ((& pnpm --version) -ne "11.5.0") { throw "pnpm 11.5.0 is required" }
+      - name: Run Phase 1 Windows x64 native gate
+        shell: powershell
+        env:
+          GRIMMORE_OBSIDIAN_BINARY: ${{ vars.GRIMMORE_OBSIDIAN_BINARY }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ([string]::IsNullOrWhiteSpace($env:GRIMMORE_OBSIDIAN_BINARY) -or -not (Test-Path -LiteralPath $env:GRIMMORE_OBSIDIAN_BINARY -PathType Leaf)) { throw "configure the native Obsidian desktop executable" }
+          if (@(Get-Process -Name "grimmored" -ErrorAction SilentlyContinue).Count -ne 0) { throw "the dedicated Windows test profile must not have a running grimmored process" }
+          function Invoke-CheckedNative {
+            param([string]$FilePath, [string[]]$Arguments)
+            & $FilePath @Arguments
+            if ($LASTEXITCODE -ne 0) {
+              throw "$FilePath failed with exit code $LASTEXITCODE"
+            }
+          }
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("install", "--frozen-lockfile")
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("lint")
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("typecheck")
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("-r", "test")
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("build")
+          Invoke-CheckedNative -FilePath "cargo" -Arguments @("fmt", "--all", "--", "--check")
+          Invoke-CheckedNative -FilePath "cargo" -Arguments @("clippy", "--locked", "--workspace", "--all-targets", "--", "-D", "warnings")
+          Invoke-CheckedNative -FilePath "cargo" -Arguments @("test", "--locked", "--workspace", "--all-targets")
+          Invoke-CheckedNative -FilePath "cargo" -Arguments @("test", "--locked", "-p", "grimmore-core", "native_credential_store_round_trip_cleans_up", "--", "--ignored")
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("test:release-windows")
+          New-Item -ItemType Directory -Force phase-1-native-evidence | Out-Null
+          Invoke-CheckedNative -FilePath "node" -Arguments @("tests/release/obsidian-desktop-smoke.mjs", "--obsidian", $env:GRIMMORE_OBSIDIAN_BINARY, "--daemon", "target/release/grimmored.exe", "--launcher", "target/release/grimmore-launcher.exe", "--report", "phase-1-native-evidence/obsidian-desktop-smoke.json")
+      - name: Capture host facts
+        if: always()
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force phase-1-native-evidence | Out-Null
+          @(
+            (git rev-parse HEAD)
+            (Get-ComputerInfo | Out-String)
+            (Get-CimInstance Win32_Processor | Format-List * | Out-String)
+            (Get-CimInstance Win32_LogicalDisk | Format-Table * | Out-String)
+            (rustc --version)
+            (node --version)
+            (pnpm --version)
+          ) | Set-Content phase-1-native-evidence/host.txt
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: phase-1-windows-x64-native-evidence
+          path: phase-1-native-evidence
+          if-no-files-found: error
+
+  windows-arm64:
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      inputs.target == 'windows-arm64'
+    runs-on: [self-hosted, grimmore-phase-1, windows, arm64, windows-11]
+    environment: phase-1-release-test
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify protected Windows 11 arm64 runner
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) { throw "Windows PowerShell 5.1 is required" }
+          if ($env:PROCESSOR_ARCHITECTURE -ne "ARM64") { throw "native arm64 runner is required" }
+          $processors = @(Get-CimInstance Win32_Processor)
+          if ($processors.Count -eq 0) { throw "a physical processor report is required" }
+          foreach ($processor in $processors) {
+            if ([int]$processor.Architecture -ne 12) { throw "native arm64 processor hardware is required" }
+          }
+          $operatingSystem = Get-CimInstance Win32_OperatingSystem
+          if ([int]$operatingSystem.ProductType -ne 1) { throw "a Windows 11 workstation runner is required" }
+          if ([version]$operatingSystem.Version -lt [version]"10.0.22000") { throw "Windows 11 is required" }
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+          if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw "standard user runner is required" }
+          Get-ChildItem Cert:\CurrentUser\My | Out-Null
+          $nodeMajor = [int](& node -p "process.versions.node.split('.')[0]")
+          if ($nodeMajor -ne 22) { throw "Node 22 is required" }
+          corepack enable
+          if ((& pnpm --version) -ne "11.5.0") { throw "pnpm 11.5.0 is required" }
+      - name: Run Phase 1 Windows arm64 native gate
+        shell: powershell
+        env:
+          GRIMMORE_OBSIDIAN_BINARY: ${{ vars.GRIMMORE_OBSIDIAN_BINARY }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ([string]::IsNullOrWhiteSpace($env:GRIMMORE_OBSIDIAN_BINARY) -or -not (Test-Path -LiteralPath $env:GRIMMORE_OBSIDIAN_BINARY -PathType Leaf)) { throw "configure the native Obsidian desktop executable" }
+          if (@(Get-Process -Name "grimmored" -ErrorAction SilentlyContinue).Count -ne 0) { throw "the dedicated Windows test profile must not have a running grimmored process" }
+          function Invoke-CheckedNative {
+            param([string]$FilePath, [string[]]$Arguments)
+            & $FilePath @Arguments
+            if ($LASTEXITCODE -ne 0) {
+              throw "$FilePath failed with exit code $LASTEXITCODE"
+            }
+          }
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("install", "--frozen-lockfile")
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("lint")
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("typecheck")
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("-r", "test")
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("build")
+          Invoke-CheckedNative -FilePath "cargo" -Arguments @("fmt", "--all", "--", "--check")
+          Invoke-CheckedNative -FilePath "cargo" -Arguments @("clippy", "--locked", "--workspace", "--all-targets", "--", "-D", "warnings")
+          Invoke-CheckedNative -FilePath "cargo" -Arguments @("test", "--locked", "--workspace", "--all-targets")
+          Invoke-CheckedNative -FilePath "cargo" -Arguments @("test", "--locked", "-p", "grimmore-core", "native_credential_store_round_trip_cleans_up", "--", "--ignored")
+          Invoke-CheckedNative -FilePath "pnpm" -Arguments @("test:release-windows")
+          New-Item -ItemType Directory -Force phase-1-native-evidence | Out-Null
+          Invoke-CheckedNative -FilePath "node" -Arguments @("tests/release/obsidian-desktop-smoke.mjs", "--obsidian", $env:GRIMMORE_OBSIDIAN_BINARY, "--daemon", "target/release/grimmored.exe", "--launcher", "target/release/grimmore-launcher.exe", "--report", "phase-1-native-evidence/obsidian-desktop-smoke.json")
+      - name: Capture host facts
+        if: always()
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force phase-1-native-evidence | Out-Null
+          @(
+            (git rev-parse HEAD)
+            (Get-ComputerInfo | Out-String)
+            (Get-CimInstance Win32_Processor | Format-List * | Out-String)
+            (Get-CimInstance Win32_LogicalDisk | Format-Table * | Out-String)
+            (rustc --version)
+            (node --version)
+            (pnpm --version)
+          ) | Set-Content phase-1-native-evidence/host.txt
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: phase-1-windows-arm64-native-evidence
+          path: phase-1-native-evidence
+          if-no-files-found: error
+
+  macos-x64:
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      inputs.target == 'macos-x64'
+    runs-on: [self-hosted, grimmore-phase-1, macos, x64, macos-14]
+    environment: phase-1-release-test
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify protected macOS 14 x64 runner
+        shell: bash
+        env:
+          GRIMMORE_MACOS_TEST_SIGNING_IDENTITY: ${{ vars.GRIMMORE_MACOS_TEST_SIGNING_IDENTITY }}
+          GRIMMORE_MACOS_TEST_CERT_SHA1: ${{ vars.GRIMMORE_MACOS_TEST_CERT_SHA1 }}
+          GRIMMORE_MACOS_TEST_TEAM_ID: ${{ vars.GRIMMORE_MACOS_TEST_TEAM_ID }}
+          GRIMMORE_MACOS_NOTARY_PROFILE: ${{ vars.GRIMMORE_MACOS_NOTARY_PROFILE }}
+        run: |
+          set -euo pipefail
+          [[ "$(uname -m)" == x86_64 ]]
+          [[ "$(sysctl -in sysctl.proc_translated 2>/dev/null || true)" != 1 ]]
+          [[ "$(sw_vers -productVersion | cut -d. -f1)" -ge 14 ]]
+          [[ -n "$GRIMMORE_MACOS_TEST_SIGNING_IDENTITY" ]]
+          [[ "$GRIMMORE_MACOS_TEST_CERT_SHA1" =~ ^[A-Fa-f0-9]{40}$ ]]
+          [[ "$GRIMMORE_MACOS_TEST_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
+          [[ -n "$GRIMMORE_MACOS_NOTARY_PROFILE" ]]
+          security find-identity -v -p codesigning | grep -F -- "$GRIMMORE_MACOS_TEST_SIGNING_IDENTITY" >/dev/null
+          xcrun notarytool history --keychain-profile "$GRIMMORE_MACOS_NOTARY_PROFILE" >/dev/null
+          [[ "$(id -u)" -ne 0 ]]
+          node -e 'process.exit(Number(process.versions.node.split(".")[0]) === 22 ? 0 : 1)'
+          corepack enable
+          [[ "$(pnpm --version)" == 11.5.0 ]]
+      - name: Run Phase 1 macOS x64 native gate
+        shell: bash
+        env:
+          GRIMMORE_MACOS_TEST_SIGNING_IDENTITY: ${{ vars.GRIMMORE_MACOS_TEST_SIGNING_IDENTITY }}
+          GRIMMORE_MACOS_TEST_CERT_SHA1: ${{ vars.GRIMMORE_MACOS_TEST_CERT_SHA1 }}
+          GRIMMORE_MACOS_TEST_TEAM_ID: ${{ vars.GRIMMORE_MACOS_TEST_TEAM_ID }}
+          GRIMMORE_MACOS_NOTARY_PROFILE: ${{ vars.GRIMMORE_MACOS_NOTARY_PROFILE }}
+          GRIMMORE_OBSIDIAN_BINARY: ${{ vars.GRIMMORE_OBSIDIAN_BINARY }}
+        run: |
+          set -euo pipefail
+          : "${GRIMMORE_OBSIDIAN_BINARY:?configure the native Obsidian desktop executable}"
+          [[ -x "$GRIMMORE_OBSIDIAN_BINARY" ]]
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm -r test
+          pnpm build
+          cargo fmt --all -- --check
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo test --locked --workspace --all-targets
+          cargo test --locked -p grimmore-core native_credential_store_round_trip_cleans_up -- --ignored
+          pnpm test:release-macos
+          mkdir -p phase-1-native-evidence
+          node tests/release/obsidian-desktop-smoke.mjs \
+            --obsidian "$GRIMMORE_OBSIDIAN_BINARY" \
+            --daemon target/release/grimmored \
+            --launcher target/release/grimmore-launcher \
+            --report phase-1-native-evidence/obsidian-desktop-smoke.json
+      - name: Capture host facts
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p phase-1-native-evidence
+          {
+            git rev-parse HEAD
+            sw_vers
+            uname -a
+            sysctl -n hw.ncpu
+            sysctl -n hw.memsize
+            diskutil info / | grep -E 'Protocol|Solid State|Device Node'
+            pmset -g batt
+            rustc --version
+            node --version
+            pnpm --version
+          } > phase-1-native-evidence/host.txt
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: phase-1-macos-x64-native-evidence
+          path: phase-1-native-evidence
+          if-no-files-found: error
+
+  macos-arm64:
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      inputs.target == 'macos-arm64'
+    runs-on: [self-hosted, grimmore-phase-1, macos, arm64, macos-14]
+    environment: phase-1-release-test
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@9f698171ed81b15d1823a05fc7211befd50c8ae0 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify protected macOS 14 arm64 runner
+        shell: bash
+        env:
+          GRIMMORE_MACOS_TEST_SIGNING_IDENTITY: ${{ vars.GRIMMORE_MACOS_TEST_SIGNING_IDENTITY }}
+          GRIMMORE_MACOS_TEST_CERT_SHA1: ${{ vars.GRIMMORE_MACOS_TEST_CERT_SHA1 }}
+          GRIMMORE_MACOS_TEST_TEAM_ID: ${{ vars.GRIMMORE_MACOS_TEST_TEAM_ID }}
+          GRIMMORE_MACOS_NOTARY_PROFILE: ${{ vars.GRIMMORE_MACOS_NOTARY_PROFILE }}
+        run: |
+          set -euo pipefail
+          [[ "$(uname -m)" == arm64 ]]
+          [[ "$(sysctl -in sysctl.proc_translated 2>/dev/null || true)" != 1 ]]
+          [[ "$(sw_vers -productVersion | cut -d. -f1)" -ge 14 ]]
+          [[ -n "$GRIMMORE_MACOS_TEST_SIGNING_IDENTITY" ]]
+          [[ "$GRIMMORE_MACOS_TEST_CERT_SHA1" =~ ^[A-Fa-f0-9]{40}$ ]]
+          [[ "$GRIMMORE_MACOS_TEST_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
+          [[ -n "$GRIMMORE_MACOS_NOTARY_PROFILE" ]]
+          security find-identity -v -p codesigning | grep -F -- "$GRIMMORE_MACOS_TEST_SIGNING_IDENTITY" >/dev/null
+          xcrun notarytool history --keychain-profile "$GRIMMORE_MACOS_NOTARY_PROFILE" >/dev/null
+          [[ "$(id -u)" -ne 0 ]]
+          node -e 'process.exit(Number(process.versions.node.split(".")[0]) === 22 ? 0 : 1)'
+          corepack enable
+          [[ "$(pnpm --version)" == 11.5.0 ]]
+      - name: Run Phase 1 macOS arm64 native gate
+        shell: bash
+        env:
+          GRIMMORE_MACOS_TEST_SIGNING_IDENTITY: ${{ vars.GRIMMORE_MACOS_TEST_SIGNING_IDENTITY }}
+          GRIMMORE_MACOS_TEST_CERT_SHA1: ${{ vars.GRIMMORE_MACOS_TEST_CERT_SHA1 }}
+          GRIMMORE_MACOS_TEST_TEAM_ID: ${{ vars.GRIMMORE_MACOS_TEST_TEAM_ID }}
+          GRIMMORE_MACOS_NOTARY_PROFILE: ${{ vars.GRIMMORE_MACOS_NOTARY_PROFILE }}
+          GRIMMORE_OBSIDIAN_BINARY: ${{ vars.GRIMMORE_OBSIDIAN_BINARY }}
+        run: |
+          set -euo pipefail
+          : "${GRIMMORE_OBSIDIAN_BINARY:?configure the native Obsidian desktop executable}"
+          [[ -x "$GRIMMORE_OBSIDIAN_BINARY" ]]
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm -r test
+          pnpm build
+          cargo fmt --all -- --check
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo test --locked --workspace --all-targets
+          cargo test --locked -p grimmore-core native_credential_store_round_trip_cleans_up -- --ignored
+          pnpm test:release-macos
+          mkdir -p phase-1-native-evidence
+          node tests/release/obsidian-desktop-smoke.mjs \
+            --obsidian "$GRIMMORE_OBSIDIAN_BINARY" \
+            --daemon target/release/grimmored \
+            --launcher target/release/grimmore-launcher \
+            --report phase-1-native-evidence/obsidian-desktop-smoke.json
+      - name: Capture host facts
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p phase-1-native-evidence
+          {
+            git rev-parse HEAD
+            sw_vers
+            uname -a
+            sysctl -n hw.ncpu
+            sysctl -n hw.memsize
+            diskutil info / | grep -E 'Protocol|Solid State|Device Node'
+            pmset -g batt
+            rustc --version
+            node --version
+            pnpm --version
+          } > phase-1-native-evidence/host.txt
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: phase-1-macos-arm64-native-evidence
+          path: phase-1-native-evidence
+          if-no-files-found: error

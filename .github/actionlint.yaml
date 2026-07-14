@@ -1,0 +1,6 @@
+self-hosted-runner:
+  labels:
+    - grimmore-phase-1
+    - ubuntu-24.04
+    - windows-11
+    - macos-14

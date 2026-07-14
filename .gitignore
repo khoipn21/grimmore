@@ -1,0 +1,16 @@
+**/target/
+**/node_modules/
+**/dist/
+/.pnpm-store/
+*.log
+*.tmp
+.DS_Store
+
+# Obsidian plugin build output
+/apps/obsidian-plugin/main.js
+/apps/obsidian-plugin/main.js.map
+
+# Local runtime state and credentials never belong in the repository
+/.grimmore/
+.en[v]
+.en[v].*

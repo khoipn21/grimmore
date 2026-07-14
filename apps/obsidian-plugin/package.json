@@ -1,0 +1,21 @@
+{
+  "name": "@grimmore/obsidian-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "lint": "eslint src tests",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@grimmore/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1",
+    "obsidian": "1.13.1",
+    "vitest": "4.1.10"
+  }
+}

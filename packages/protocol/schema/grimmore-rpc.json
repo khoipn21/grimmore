@@ -1,0 +1,598 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WireContract",
+  "description": "Schema aggregation point used to generate the committed TypeScript contract.",
+  "type": "object",
+  "properties": {
+    "cancelRequestParams": {
+      "$ref": "#/$defs/CancelRequestParams"
+    },
+    "cancelRequestResult": {
+      "$ref": "#/$defs/CancelRequestResult"
+    },
+    "clientAuthenticate": {
+      "$ref": "#/$defs/ClientAuthenticate"
+    },
+    "clientHandshakeMessage": {
+      "$ref": "#/$defs/ClientHandshakeMessage"
+    },
+    "clientHello": {
+      "$ref": "#/$defs/ClientHello"
+    },
+    "failure": {
+      "$ref": "#/$defs/JsonRpcFailure"
+    },
+    "healthResult": {
+      "$ref": "#/$defs/HealthResult"
+    },
+    "patchProposal": {
+      "$ref": "#/$defs/PatchProposal"
+    },
+    "proposeNoteReplacementParams": {
+      "$ref": "#/$defs/ProposeNoteReplacementParams"
+    },
+    "request": {
+      "$ref": "#/$defs/JsonRpcRequest"
+    },
+    "response": {
+      "$ref": "#/$defs/JsonRpcResponse"
+    },
+    "searchNotesParams": {
+      "$ref": "#/$defs/SearchNotesParams"
+    },
+    "searchNotesResult": {
+      "$ref": "#/$defs/SearchNotesResult"
+    },
+    "serverChallenge": {
+      "$ref": "#/$defs/ServerChallenge"
+    },
+    "serverHandshakeMessage": {
+      "$ref": "#/$defs/ServerHandshakeMessage"
+    },
+    "sessionReady": {
+      "$ref": "#/$defs/SessionReady"
+    },
+    "success": {
+      "$ref": "#/$defs/JsonRpcSuccess"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "clientHello",
+    "serverChallenge",
+    "clientAuthenticate",
+    "sessionReady",
+    "clientHandshakeMessage",
+    "serverHandshakeMessage",
+    "request",
+    "success",
+    "failure",
+    "response",
+    "searchNotesParams",
+    "searchNotesResult",
+    "healthResult",
+    "cancelRequestParams",
+    "cancelRequestResult",
+    "proposeNoteReplacementParams",
+    "patchProposal"
+  ],
+  "$defs": {
+    "CancelRequestParams": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "requestId"
+      ]
+    },
+    "CancelRequestResult": {
+      "type": "object",
+      "properties": {
+        "cancelled": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "cancelled"
+      ]
+    },
+    "ClientAuthenticate": {
+      "type": "object",
+      "properties": {
+        "clientProof": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sessionId",
+        "clientProof"
+      ]
+    },
+    "ClientHandshakeMessage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "clientNonce": {
+              "type": "string"
+            },
+            "clientVersion": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0
+            },
+            "role": {
+              "$ref": "#/$defs/SessionRole"
+            },
+            "type": {
+              "type": "string",
+              "const": "hello"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "protocolVersion",
+            "clientVersion",
+            "role",
+            "clientNonce"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "clientProof": {
+              "type": "string"
+            },
+            "sessionId": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "authenticate"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "sessionId",
+            "clientProof"
+          ]
+        }
+      ]
+    },
+    "ClientHello": {
+      "type": "object",
+      "properties": {
+        "clientNonce": {
+          "type": "string"
+        },
+        "clientVersion": {
+          "type": "string"
+        },
+        "protocolVersion": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "role": {
+          "$ref": "#/$defs/SessionRole"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "clientVersion",
+        "role",
+        "clientNonce"
+      ]
+    },
+    "HealthResult": {
+      "type": "object",
+      "properties": {
+        "productVersion": {
+          "type": "string"
+        },
+        "protocolVersion": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "role": {
+          "$ref": "#/$defs/SessionRole"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "productVersion",
+        "protocolVersion",
+        "role"
+      ]
+    },
+    "JsonRpcErrorBody": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "JsonRpcFailure": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/JsonRpcErrorBody"
+        },
+        "id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "jsonrpc": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "jsonrpc",
+        "error"
+      ]
+    },
+    "JsonRpcRequest": {
+      "type": "object",
+      "properties": {
+        "deadlineUnixMs": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "grantId": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "jsonrpc": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": true,
+        "scopeId": {
+          "type": "string"
+        },
+        "vaultId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "jsonrpc",
+        "id",
+        "method",
+        "params",
+        "deadlineUnixMs",
+        "vaultId",
+        "grantId",
+        "scopeId"
+      ]
+    },
+    "JsonRpcResponse": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/JsonRpcSuccess"
+        },
+        {
+          "$ref": "#/$defs/JsonRpcFailure"
+        }
+      ]
+    },
+    "JsonRpcSuccess": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "jsonrpc": {
+          "type": "string"
+        },
+        "result": true
+      },
+      "additionalProperties": false,
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ]
+    },
+    "PatchProposal": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "proposedRevision": {
+          "type": "string"
+        },
+        "replacement": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "expectedRevision",
+        "proposedRevision",
+        "replacement"
+      ]
+    },
+    "ProposeNoteReplacementParams": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "replacement": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "expectedRevision",
+        "replacement"
+      ]
+    },
+    "SearchHit": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "title",
+        "snippet",
+        "revision"
+      ]
+    },
+    "SearchNotesParams": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query",
+        "limit"
+      ]
+    },
+    "SearchNotesResult": {
+      "type": "object",
+      "properties": {
+        "hits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SearchHit"
+          }
+        },
+        "indexedRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "hits",
+        "indexedRevision"
+      ]
+    },
+    "ServerChallenge": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 0
+        },
+        "serverNonce": {
+          "type": "string"
+        },
+        "serverProof": {
+          "type": "string"
+        },
+        "serverVersion": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "serverVersion",
+        "sessionId",
+        "serverNonce",
+        "serverProof"
+      ]
+    },
+    "ServerHandshakeMessage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "protocolVersion": {
+              "type": "integer",
+              "format": "uint16",
+              "maximum": 65535,
+              "minimum": 0
+            },
+            "serverNonce": {
+              "type": "string"
+            },
+            "serverProof": {
+              "type": "string"
+            },
+            "serverVersion": {
+              "type": "string"
+            },
+            "sessionId": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "challenge"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "protocolVersion",
+            "serverVersion",
+            "sessionId",
+            "serverNonce",
+            "serverProof"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "expiresAtUnixMs": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            },
+            "role": {
+              "$ref": "#/$defs/SessionRole"
+            },
+            "sessionId": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "ready"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "sessionId",
+            "role",
+            "expiresAtUnixMs"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "rejected"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ]
+        }
+      ]
+    },
+    "SessionReady": {
+      "type": "object",
+      "properties": {
+        "expiresAtUnixMs": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "role": {
+          "$ref": "#/$defs/SessionRole"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sessionId",
+        "role",
+        "expiresAtUnixMs"
+      ]
+    },
+    "SessionRole": {
+      "type": "string",
+      "enum": [
+        "plugin",
+        "mcp-readonly"
+      ]
+    }
+  }
+}

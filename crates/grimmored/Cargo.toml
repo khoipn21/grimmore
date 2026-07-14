@@ -1,0 +1,43 @@
+[package]
+name = "grimmored"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+directories.workspace = true
+grimmore-core.workspace = true
+notify.workspace = true
+rmcp.workspace = true
+rusqlite.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+walkdir.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+grimmore-windows-native = { path = "../grimmore-windows-native" }
+
+[dev-dependencies]
+criterion.workspace = true
+hex.workspace = true
+rmcp = { workspace = true, features = ["client"] }
+sha2.workspace = true
+tempfile.workspace = true
+
+[[bench]]
+name = "vertical_slice"
+harness = false
+test = false
+
+[lints]
+workspace = true

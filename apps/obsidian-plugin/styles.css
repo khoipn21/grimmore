@@ -1,0 +1,16 @@
+.grimmore-replacement-input {
+  box-sizing: border-box;
+  min-height: 18rem;
+  width: 100%;
+}
+
+.grimmore-diff-preview {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  max-height: min(60vh, 42rem);
+  overflow: auto;
+  padding: var(--size-4-3);
+  user-select: text;
+  white-space: pre;
+}

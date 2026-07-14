@@ -1,0 +1,61 @@
+[release]
+schema_version = 1
+stable_launcher = "grimmore-launcher"
+install_scope = "per-user"
+test_signing_channel = "test"
+
+[[targets]]
+id = "windows-x64"
+os = "windows"
+architecture = "x64"
+minimum_os = "Windows 11"
+credential_store = "Windows Credential Manager"
+installer = "installers/windows/install.ps1"
+rollback = "installers/windows/rollback.ps1"
+
+[[targets]]
+id = "windows-arm64"
+os = "windows"
+architecture = "arm64"
+minimum_os = "Windows 11"
+credential_store = "Windows Credential Manager"
+installer = "installers/windows/install.ps1"
+rollback = "installers/windows/rollback.ps1"
+
+[[targets]]
+id = "macos-x64"
+os = "macos"
+architecture = "x64"
+minimum_os = "macOS 14"
+credential_store = "macOS Keychain"
+installer = "installers/macos/install.sh"
+rollback = "installers/macos/rollback.sh"
+
+[[targets]]
+id = "macos-arm64"
+os = "macos"
+architecture = "arm64"
+minimum_os = "macOS 14"
+credential_store = "macOS Keychain"
+installer = "installers/macos/install.sh"
+rollback = "installers/macos/rollback.sh"
+
+[[targets]]
+id = "linux-x64-gnu"
+os = "linux"
+architecture = "x64"
+minimum_os = "Ubuntu 24.04 LTS"
+libc = "glibc"
+credential_store = "Secret Service"
+installer = "installers/linux/install.sh"
+rollback = "installers/linux/rollback.sh"
+
+[[targets]]
+id = "linux-arm64-gnu"
+os = "linux"
+architecture = "arm64"
+minimum_os = "Ubuntu 24.04 LTS"
+libc = "glibc"
+credential_store = "Secret Service"
+installer = "installers/linux/install.sh"
+rollback = "installers/linux/rollback.sh"
