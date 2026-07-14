@@ -579,6 +579,10 @@ async function main() {
     assert.equal(await session.evaluate(applyReviewedPatch), true, "approve reviewed patch");
     await waitFor(() => readFile(join(vault, notePath), "utf8"), (content) => content === approvedReplacement, "Obsidian Vault.process approved write");
     await waitForRenderer(session, 'document.querySelector(".grimmore-replacement-input") === null', "approved patch review modal to close");
+    await waitForRenderer(session, `(async () => {
+      const file = app.vault.getAbstractFileByPath(${JSON.stringify(notePath)});
+      return file !== null && (await app.vault.read(file)) === ${JSON.stringify(approvedReplacement)};
+    })()`, "Obsidian vault reconciliation after the approved write");
 
     const staleReplacement = `${approvedReplacement}\nThis stale replacement must never be written.\n`;
     assert.equal(await session.evaluate(openAndStartReview()), true, "start stale patch review");
