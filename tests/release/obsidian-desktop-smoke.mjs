@@ -251,16 +251,27 @@ async function waitFor(fetch_, predicate, description, timeoutMs = 30_000) {
   throw new Error(`${description} did not become ready within ${timeoutMs}ms${lastError === undefined ? "" : `: ${lastError.message}`}`);
 }
 
-async function debugTarget(port) {
-  const targets = await waitFor(
-    async () => {
-      const response = await fetch(`http://127.0.0.1:${port}/json/list`);
-      if (!response.ok) throw new Error(`remote debugger returned HTTP ${response.status}`);
-      return response.json();
-    },
-    (value) => Array.isArray(value) && value.some((target) => target?.type === "page" && target?.url?.startsWith("app://obsidian.md/") && typeof target.webSocketDebuggerUrl === "string"),
-    "Obsidian remote debugger",
-  );
+async function debugTarget(port, process_) {
+  let targets;
+  try {
+    targets = await waitFor(
+      async () => {
+        const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+        if (!response.ok) throw new Error(`remote debugger returned HTTP ${response.status}`);
+        return response.json();
+      },
+      (value) => Array.isArray(value) && value.some((target) => target?.type === "page" && target?.url?.startsWith("app://obsidian.md/") && typeof target.webSocketDebuggerUrl === "string"),
+      "Obsidian remote debugger",
+    );
+  } catch (error) {
+    const exit = process_.child.exitCode === null && process_.child.signalCode === null
+      ? "still running"
+      : process_.child.signalCode === null
+        ? `exited with code ${process_.child.exitCode}`
+        : `exited from signal ${process_.child.signalCode}`;
+    const stderr = process_.stderr().trim();
+    throw new Error(`${error.message}; Obsidian ${exit}${stderr.length === 0 ? "" : `; stderr: ${stderr}`}`);
+  }
   return targets.find((target) => target?.type === "page" && target?.url?.startsWith("app://obsidian.md/") && typeof target.webSocketDebuggerUrl === "string");
 }
 
@@ -471,7 +482,7 @@ async function collectSynchronousPluginLoadSamples(options, vault, environment) 
     try {
       await prepareObsidianProfile(profile, vault);
       obsidian = startObsidian(options, vault, port, profile, environment);
-      const target = await debugTarget(port);
+      const target = await debugTarget(port, obsidian);
       session = await DevToolsSession.connect(target.webSocketDebuggerUrl);
       await waitForRenderer(session, 'typeof app !== "undefined" && app.plugins !== undefined', "the Obsidian plugin manager for timing");
       assert.equal(await enableTestCommunityPlugins(session), true, "enable community plugins in the isolated timing profile");
@@ -527,7 +538,7 @@ async function main() {
       throw new Error(`${error.message}; grimmored stderr: ${daemon.stderr()}`);
     });
     obsidian = startObsidian(options, vault, port, profile, environment);
-    const target = await debugTarget(port);
+    const target = await debugTarget(port, obsidian);
     session = await DevToolsSession.connect(target.webSocketDebuggerUrl);
     await waitForRenderer(session, 'typeof app !== "undefined" && app.plugins !== undefined', "the Obsidian plugin manager");
     assert.equal(await enableTestCommunityPlugins(session), true, "enable community plugins in the isolated desktop-smoke profile");
