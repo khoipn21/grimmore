@@ -38,11 +38,14 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes dbus-x11 gnome-keyring xvfb
+          runtime_dir="$RUNNER_TEMP/grimmore-runtime"
+          install -d -m 700 "$runtime_dir"
+          export XDG_RUNTIME_DIR="$runtime_dir"
           eval "$(dbus-launch --sh-syntax)"
           eval "$(gnome-keyring-daemon --start --components=secrets)"
           {
             printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_SESSION_BUS_ADDRESS"
-            printf 'GNOME_KEYRING_CONTROL=%s\n' "$GNOME_KEYRING_CONTROL"
+            printf 'XDG_RUNTIME_DIR=%s\n' "$XDG_RUNTIME_DIR"
             printf 'APPIMAGE_EXTRACT_AND_RUN=1\n'
           } >> "$GITHUB_ENV"
       - name: Download the pinned Obsidian desktop application
@@ -110,7 +113,7 @@ jobs:
             findmnt --target "$GITHUB_WORKSPACE"
             rustc --version
             node --version
-            pnpm --version
+            pnpm --version || true
           } > phase-1-native-evidence/host.txt
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
@@ -137,11 +140,14 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes dbus-x11 gnome-keyring
+          runtime_dir="$RUNNER_TEMP/grimmore-runtime"
+          install -d -m 700 "$runtime_dir"
+          export XDG_RUNTIME_DIR="$runtime_dir"
           eval "$(dbus-launch --sh-syntax)"
           eval "$(gnome-keyring-daemon --start --components=secrets)"
           {
             printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_SESSION_BUS_ADDRESS"
-            printf 'GNOME_KEYRING_CONTROL=%s\n' "$GNOME_KEYRING_CONTROL"
+            printf 'XDG_RUNTIME_DIR=%s\n' "$XDG_RUNTIME_DIR"
           } >> "$GITHUB_ENV"
       - name: Run canonical Phase 1 performance gate
         shell: bash
@@ -205,11 +211,14 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes dbus-x11 gnome-keyring
+          runtime_dir="$RUNNER_TEMP/grimmore-runtime"
+          install -d -m 700 "$runtime_dir"
+          export XDG_RUNTIME_DIR="$runtime_dir"
           eval "$(dbus-launch --sh-syntax)"
           eval "$(gnome-keyring-daemon --start --components=secrets)"
           {
             printf 'DBUS_SESSION_BUS_ADDRESS=%s\n' "$DBUS_SESSION_BUS_ADDRESS"
-            printf 'GNOME_KEYRING_CONTROL=%s\n' "$GNOME_KEYRING_CONTROL"
+            printf 'XDG_RUNTIME_DIR=%s\n' "$XDG_RUNTIME_DIR"
           } >> "$GITHUB_ENV"
       - name: Verify GitHub-hosted Ubuntu 24.04 arm64 runner
         shell: bash
@@ -257,7 +266,7 @@ jobs:
             findmnt --target "$GITHUB_WORKSPACE"
             rustc --version
             node --version
-            pnpm --version
+            pnpm --version || true
           } > phase-1-native-evidence/host.txt
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
